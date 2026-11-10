@@ -161,6 +161,7 @@ const TrophyMini = () => <span aria-hidden="true">🏆</span>
 function RankTable({ rows, compact }) {
   if (!rows.length) return <div className="empty">Sin calificaciones todavía</div>
   return (
+    <div className="table-wrap">
     <table className="rank">
       <thead>
         <tr>
@@ -186,6 +187,7 @@ function RankTable({ rows, compact }) {
         ))}
       </tbody>
     </table>
+    </div>
   )
 }
 

@@ -6,6 +6,8 @@ import { loadQuestions, submitSurvey } from '../lib/survey'
 import VehicleSlider from '../components/VehicleSlider'
 import Stars from '../components/Stars'
 import { getSessionTag } from './Welcome'
+import { useI18n } from '../i18n'
+import LangPicker from '../components/LangPicker'
 
 function isAnswered(q, v) {
   if (q.type === 'multiple') return Array.isArray(v) && v.length > 0
@@ -14,17 +16,19 @@ function isAnswered(q, v) {
 }
 
 function QuestionInput({ q, value, onChange }) {
+  const { t, tq } = useI18n()
+  const label = tq(q).option
   const opts = Array.isArray(q.options) ? q.options : []
   switch (q.type) {
     case 'rating':
-      return <Stars value={value} onChange={onChange} />
+      return <Stars value={value} onChange={onChange} labels={t('ratings')} hint={t('tapStar')} />
     case 'single':
       return (
         <div className="opts" role="radiogroup">
           {opts.map((o) => (
             <button key={o} type="button" role="radio" aria-checked={value === o}
               className={'opt round' + (value === o ? ' on' : '')} onClick={() => onChange(o)}>
-              <span className="box">{value === o && <Check size={16} strokeWidth={3} />}</span>{o}
+              <span className="box">{value === o && <Check size={16} strokeWidth={3} />}</span>{label(o)}
             </button>
           ))}
         </div>
@@ -37,7 +41,7 @@ function QuestionInput({ q, value, onChange }) {
           {opts.map((o) => (
             <button key={o} type="button" role="checkbox" aria-checked={arr.includes(o)}
               className={'opt' + (arr.includes(o) ? ' on' : '')} onClick={() => toggle(o)}>
-              <span className="box">{arr.includes(o) && <Check size={16} strokeWidth={3} />}</span>{o}
+              <span className="box">{arr.includes(o) && <Check size={16} strokeWidth={3} />}</span>{label(o)}
             </button>
           ))}
         </div>
@@ -47,16 +51,16 @@ function QuestionInput({ q, value, onChange }) {
       return (
         <div className="yesno">
           <button type="button" className={'yn yes' + (value === true ? ' on' : '')} onClick={() => onChange(true)}>
-            <ThumbsUp size={22} /> Sí
+            <ThumbsUp size={22} /> {t('yes')}
           </button>
           <button type="button" className={'yn no' + (value === false ? ' on' : '')} onClick={() => onChange(false)}>
-            <ThumbsDown size={22} /> No
+            <ThumbsDown size={22} /> {t('no')}
           </button>
         </div>
       )
     case 'text':
       return (
-        <textarea className="textarea" maxLength={2000} placeholder="Cuéntanos más sobre tu experiencia…"
+        <textarea className="textarea" maxLength={2000} placeholder={t('textPlaceholder')}
           value={value || ''} onChange={(e) => onChange(e.target.value)} />
       )
     default:
@@ -70,6 +74,7 @@ function Shell({ children }) {
 
 export default function Survey() {
   const nav = useNavigate()
+  const { t, tq } = useI18n()
   const tag = getSessionTag()
   const [questions, setQuestions] = useState(null)
   const [error, setError] = useState('')
@@ -80,7 +85,7 @@ export default function Survey() {
   useEffect(() => {
     loadQuestions()
       .then(({ questions }) => setQuestions(questions))
-      .catch(() => setError('No pudimos cargar la encuesta. Revisa tu conexión e inténtalo de nuevo.'))
+      .catch(() => setError('load'))
   }, [])
 
   const home = () => nav(tag ? `/t/${tag}` : '/')
@@ -115,22 +120,25 @@ export default function Survey() {
       const res = await submitSurvey(tag, payload)
       nav('/gracias', { replace: true, state: { avg, queued: res.queued, tag } })
     } catch {
-      setError('No se pudo enviar la encuesta. Inténtalo de nuevo.')
+      setError('send')
       setSending(false)
     }
   }
 
   if (error && !questions) {
-    return <Shell><p>{error}</p><button className="btn btn-primary" onClick={() => location.reload()}>Reintentar</button></Shell>
+    return <Shell><p>{t('loadError')}</p><button className="btn btn-primary" onClick={() => location.reload()}>{t('retry')}</button></Shell>
   }
-  if (!questions) return <Shell><div className="spinner" />Cargando encuesta…</Shell>
-  if (!total) return <Shell><p>No hay preguntas activas por ahora.</p><button className="btn btn-ghost" onClick={home}>Volver</button></Shell>
+  if (!questions) return <Shell><div className="spinner" />{t('loading')}</Shell>
+  if (!total) return <Shell><p>{t('noQuestions')}</p><button className="btn btn-ghost" onClick={home}>{t('goBack')}</button></Shell>
 
   return (
     <div className="screen">
       <header className="s-header">
         <img src={asset('logo.png')} alt="San Andrés Vibes" />
-        <button className="icon-btn" onClick={home} aria-label="Inicio"><Home size={20} /></button>
+        <div className="s-header-actions">
+          <LangPicker variant="menu" />
+          <button className="icon-btn" onClick={home} aria-label={t('home')}><Home size={20} /></button>
+        </div>
       </header>
       <div className="progress">
         <div className="progress-track"><div className="progress-fill" style={{ width: `${((step + 1) / total) * 100}%` }} /></div>
@@ -139,25 +147,25 @@ export default function Survey() {
 
       <main className="s-body">
         <div key={q.id} className="q-anim" style={{ display: 'grid', gap: 16 }}>
-          <h1 className="q-title">{q.title}{q.required && <span className="q-required"> *</span>}</h1>
-          {q.subtitle && <p className="q-sub">{q.subtitle}</p>}
+          <h1 className="q-title">{tq(q).title}{q.required && <span className="q-required"> *</span>}</h1>
+          {tq(q).subtitle && <p className="q-sub">{tq(q).subtitle}</p>}
           <QuestionInput q={q} value={value} onChange={setValue} />
         </div>
         <VehicleSlider />
-        {error && <div className="notice">{error}</div>}
+        {error === 'send' && <div className="notice">{t('sendError')}</div>}
       </main>
 
       <footer className={'s-footer' + (step === 0 ? ' single' : '')}>
         {step > 0 && (
-          <button className="btn btn-ghost" onClick={() => setStep((s) => s - 1)}><ChevronLeft size={18} /> Atrás</button>
+          <button className="btn btn-ghost" onClick={() => setStep((s) => s - 1)}><ChevronLeft size={18} /> {t('back')}</button>
         )}
         {last ? (
           <button className="btn btn-primary" disabled={!canNext || sending} onClick={submit}>
-            {sending ? 'Enviando…' : <><Send size={18} /> Enviar encuesta</>}
+            {sending ? t('sending') : <><Send size={18} /> {t('send')}</>}
           </button>
         ) : (
           <button className="btn btn-primary" disabled={!canNext} onClick={() => setStep((s) => s + 1)}>
-            {q.required || isAnswered(q, value) ? 'Siguiente' : 'Omitir'} <ChevronRight size={18} />
+            {q.required || isAnswered(q, value) ? t('next') : t('skip')} <ChevronRight size={18} />
           </button>
         )}
       </footer>

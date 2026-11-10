@@ -4,12 +4,16 @@ App web instalable (PWA) en React + Vite + Supabase para medir la satisfacción 
 **San Andrés Vibes Experiences**, el servicio de alquiler de buggies, mulas y botes pontón en San Andrés Islas.
 
 - **App pública:** https://cashlessmot2026.github.io/vibes/
-- **Panel admin:** link oculto definido por la variable `ADMIN_PATH` del repositorio (no se publica aquí)
+- **Panel admin:** https://cashlessmot2026.github.io/vibes/#/admin (la ruta se cambia con la variable `ADMIN_PATH` del repositorio)
 
 ## Funciones
 
 **Cliente**
-- Escanea el QR del trabajador (con la cámara del teléfono o con el botón *Escanear QR*, que usa la cámara trasera).
+- Botón *Escanear QR / NFC*: abre la cámara trasera para el QR y, en Android (Chrome), lee también TAG NFC.
+  En iPhone los TAG NFC los lee el propio sistema: al acercar el teléfono se abre la encuesta.
+- Disponible en 6 idiomas (español, inglés, francés, italiano, alemán y portugués). Detecta el idioma del teléfono
+  y se puede cambiar con los botones de la portada o con el globo en cada pregunta.
+- Se adapta a cualquier pantalla: iPhone (incluido SE y modelos con notch), Android, tablets y escritorio.
 - Encuesta paso a paso con barra de progreso, estrellas, opción única o múltiple, Sí/No y texto.
 - Banner automático con fotos de los vehículos en todas las preguntas.
 - Al terminar ve los botones para dejar reseña en **Google** (Place ID `ChIJSTFP4YUpRAkRQNgr1cRHY7Y`) y en **Tripadvisor**.
@@ -20,8 +24,11 @@ App web instalable (PWA) en React + Vite + Supabase para medir la satisfacción 
   niveles de satisfacción, calificación por aspecto y resultados de las preguntas de opción.
 - **Ranking de QR**: los trabajadores ordenados por calificación.
 - Comentarios con filtros y exportación a CSV (Excel).
-- Editor de preguntas: crear, editar, ordenar, ocultar y eliminar.
+- Editor de preguntas: crear, editar, ordenar, ocultar y eliminar, con traducción a los 5 idiomas
+  (si un idioma queda vacío, la pregunta se muestra en español).
 - Equipo y QR: alta de trabajadores con un **TAG único**, más el **QR genérico**. Descarga de cada QR como tarjeta PNG con el logo.
+- **Grabar TAG NFC**: botón *NFC* en cada tarjeta (Chrome en Android con NFC). Graba el mismo link del QR, así que el TAG
+  funciona en iPhone y Android. Alternativa: la app gratuita *NFC Tools* → Escribir → URL → pega el link.
 - Se actualiza solo cada minuto.
 
 ## Configurar Supabase (una sola vez)

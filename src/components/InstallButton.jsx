@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
+import { useI18n } from '../i18n'
 
 let deferred = null
 if (typeof window !== 'undefined') {
@@ -11,6 +12,7 @@ const isStandalone = () =>
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
 
 export default function InstallButton({ className = 'btn btn-outline' }) {
+  const { t } = useI18n()
   const [can, setCan] = useState(!!deferred)
   const [tip, setTip] = useState(false)
 
@@ -33,10 +35,10 @@ export default function InstallButton({ className = 'btn btn-outline' }) {
 
   return (
     <>
-      <button className={className} onClick={install}><Download size={18} /> Instalar app</button>
+      <button className={className} onClick={install}><Download size={18} /> {t('install')}</button>
       {tip && (
         <div className="toast" onClick={() => setTip(false)}>
-          En iPhone: toca <b>Compartir</b> y luego <b>“Agregar a inicio”</b>.
+          {t('iosInstall')}
         </div>
       )}
     </>

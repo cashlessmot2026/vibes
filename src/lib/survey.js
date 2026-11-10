@@ -14,7 +14,7 @@ export async function loadQuestions() {
   try {
     const { data, error } = await supabase
       .from('questions')
-      .select('id, position, type, title, subtitle, options, required')
+      .select('id, position, type, title, subtitle, options, required, translations')
       .eq('active', true)
       .order('position', { ascending: true })
     if (error) throw error

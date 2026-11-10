@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Check, ChevronRight, Home } from 'lucide-react'
 import { GOOGLE_REVIEW_URL, TRIPADVISOR_REVIEW_URL } from '../config'
 import VehicleSlider from '../components/VehicleSlider'
+import { useI18n } from '../i18n'
 
 const GoogleG = () => (
   <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
@@ -23,6 +24,7 @@ const Owl = () => (
 export default function Thanks() {
   const nav = useNavigate()
   const { state } = useLocation()
+  const { t } = useI18n()
   const avg = state?.avg || 0
   const tag = state?.tag || ''
   const happy = avg === 0 || avg >= 4
@@ -31,34 +33,34 @@ export default function Thanks() {
     <div className="screen">
       <div className="thanks">
         <div className="check"><Check size={48} strokeWidth={3} /></div>
-        <h1>¡Gracias!</h1>
+        <h1>{t('thanks')}</h1>
         <p>
-          Tu opinión es muy importante para nosotros.<br />
-          Seguiremos mejorando para ofrecerte las mejores experiencias en San Andrés.
+          {t('thanksText1')}<br />
+          {t('thanksText2')}
         </p>
         {state?.queued && (
-          <div className="notice">Estás sin conexión: tu encuesta quedó guardada y se enviará automáticamente.</div>
+          <div className="notice">{t('queued')}</div>
         )}
 
         <div className="review-card">
-          <h3>{happy ? '¿Nos regalas una reseña? ⭐' : 'Cuéntale al mundo tu experiencia'}</h3>
-          <p style={{ fontSize: 13.5, marginTop: -4 }}>Solo toma unos segundos y nos ayuda muchísimo.</p>
+          <h3>{happy ? t('reviewAsk') : t('reviewAsk2')}</h3>
+          <p style={{ fontSize: 13.5, marginTop: -4 }}>{t('reviewSub')}</p>
           <a className="review-btn" href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer">
             <span className="logo"><GoogleG /></span>
-            <span>Reseña en Google<small>Califícanos en Google Maps</small></span>
+            <span>{t('google')}<small>{t('googleSub')}</small></span>
             <ChevronRight className="go" size={20} />
           </a>
           <a className="review-btn" href={TRIPADVISOR_REVIEW_URL} target="_blank" rel="noopener noreferrer">
             <span className="logo"><Owl /></span>
-            <span>Reseña en Tripadvisor<small>Comparte tu opinión con otros viajeros</small></span>
+            <span>{t('trip')}<small>{t('tripSub')}</small></span>
             <ChevronRight className="go" size={20} />
           </a>
         </div>
 
-        <div style={{ width: '100%' }}><VehicleSlider caption="¡Hasta la próxima aventura!" /></div>
+        <div style={{ width: '100%' }}><VehicleSlider caption={t('bye')} /></div>
 
         <button className="btn btn-ghost btn-block" onClick={() => nav(tag ? `/t/${tag}` : '/', { replace: true })}>
-          <Home size={18} /> Volver al inicio
+          <Home size={18} /> {t('backHome')}
         </button>
       </div>
     </div>

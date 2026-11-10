@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { TRANSLATION_LANGS } from '../i18n'
 
 const TYPES = {
   rating: 'Estrellas 1-5',
@@ -14,8 +15,14 @@ function Editor({ initial, onClose, onSaved, nextPosition }) {
   const [f, setF] = useState(() => ({
     type: 'rating', title: '', subtitle: '', required: true, active: true,
     ...initial,
-    optionsText: (initial?.options || []).join('\n')
+    optionsText: (initial?.options || []).join('\n'),
+    tr: Object.fromEntries(TRANSLATION_LANGS.map(({ code }) => {
+      const x = initial?.translations?.[code] || {}
+      return [code, { title: x.title || '', subtitle: x.subtitle || '', optionsText: (x.options || []).join('\n') }]
+    }))
   }))
+  const [trLang, setTrLang] = useState(TRANSLATION_LANGS[0].code)
+  const setTr = (k) => (e) => setF({ ...f, tr: { ...f.tr, [trLang]: { ...f.tr[trLang], [k]: e.target.value } } })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
@@ -26,10 +33,22 @@ function Editor({ initial, onClose, onSaved, nextPosition }) {
     const options = needsOptions ? [...new Set(f.optionsText.split('\n').map((s) => s.trim()).filter(Boolean))] : []
     if (!f.title.trim()) return setErr('Escribe la pregunta')
     if (needsOptions && options.length < 2) return setErr('Agrega al menos 2 opciones (una por línea)')
+    const translations = {}
+    for (const { code } of TRANSLATION_LANGS) {
+      const x = f.tr[code]
+      const o = {}
+      if (x.title.trim()) o.title = x.title.trim()
+      if (x.subtitle.trim()) o.subtitle = x.subtitle.trim()
+      if (needsOptions) {
+        const lines = x.optionsText.split('\n').map((v) => v.trim())
+        if (lines.some(Boolean)) o.options = options.map((_, i) => lines[i] || '')
+      }
+      if (Object.keys(o).length) translations[code] = o
+    }
     setBusy(true)
     const row = {
       type: f.type, title: f.title.trim(), subtitle: f.subtitle?.trim() || null,
-      options, required: f.type === 'text' ? false : f.required, active: f.active
+      options, required: f.type === 'text' ? false : f.required, active: f.active, translations
     }
     const { error } = initial?.id
       ? await supabase.from('questions').update(row).eq('id', initial.id)
@@ -63,6 +82,31 @@ function Editor({ initial, onClose, onSaved, nextPosition }) {
             <textarea value={f.optionsText} onChange={set('optionsText')} placeholder={'Opción 1\nOpción 2\nOpción 3'} />
           </div>
         )}
+        <details className="tr-box" open={!!initial?.id}>
+          <summary>🌐 Traducciones (inglés, francés, italiano, alemán, portugués)</summary>
+          <div className="seg" style={{ margin: '10px 0 12px', flexWrap: 'wrap' }}>
+            {TRANSLATION_LANGS.map((l) => (
+              <button type="button" key={l.code} className={trLang === l.code ? 'on' : ''} onClick={() => setTrLang(l.code)}>
+                {l.code.toUpperCase()}{f.tr[l.code].title.trim() ? ' ✓' : ''}
+              </button>
+            ))}
+          </div>
+          <div className="field">
+            <label>Pregunta en {TRANSLATION_LANGS.find((l) => l.code === trLang).label}</label>
+            <input className="input" value={f.tr[trLang].title} onChange={setTr('title')} maxLength={200} placeholder={f.title} />
+          </div>
+          <div className="field">
+            <label>Texto de ayuda</label>
+            <input className="input" value={f.tr[trLang].subtitle} onChange={setTr('subtitle')} maxLength={200} placeholder={f.subtitle || ''} />
+          </div>
+          {needsOptions && (
+            <div className="field">
+              <label>Opciones (mismo orden que en español, una por línea)</label>
+              <textarea value={f.tr[trLang].optionsText} onChange={setTr('optionsText')} placeholder={f.optionsText} />
+            </div>
+          )}
+          <p className="hint">Si un idioma queda vacío, el cliente verá la pregunta en español.</p>
+        </details>
         {f.type !== 'text' && (
           <label className="check-row"><input type="checkbox" checked={f.required} onChange={set('required')} /> Respuesta obligatoria</label>
         )}
@@ -142,6 +186,7 @@ export default function Questions({ onChange }) {
                 <div className="s">
                   <span className="type-badge">{TYPES[q.type]}</span>
                   {q.options?.length > 0 && <> · {q.options.join(' · ')}</>}
+                  {' · 🌐 '}{Object.keys(q.translations || {}).length}/{TRANSLATION_LANGS.length}
                   {!q.active && <> · <span className="pill off">Oculta</span></>}
                 </div>
               </div>

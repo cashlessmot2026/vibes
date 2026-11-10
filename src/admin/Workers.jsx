@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
-import { Copy, Download, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Copy, Download, ExternalLink, Nfc, Pencil, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { asset, surveyUrlForTag } from '../config'
 
@@ -49,10 +49,31 @@ async function downloadCard(qrCanvas, { name, tag }) {
   a.click()
 }
 
+// Graba el link de la encuesta en un TAG NFC (Chrome en Android).
+// En iPhone el TAG grabado se lee de forma nativa y abre la encuesta.
+async function writeNfc(url, setNfc) {
+  if (!('NDEFReader' in window)) {
+    setNfc({ kind: 'info', text: 'Para grabar TAG NFC abre este panel en Chrome en un Android con NFC. También puedes usar la app gratuita “NFC Tools” (iPhone o Android): graba un registro URL con el link de este QR.' })
+    return
+  }
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 30000)
+  setNfc({ kind: 'wait', text: 'Acerca el TAG NFC a la parte trasera del teléfono…' })
+  try {
+    await new window.NDEFReader().write({ records: [{ recordType: 'url', data: url }] }, { signal: ctrl.signal, overwrite: true })
+    setNfc({ kind: 'ok', text: '¡TAG NFC grabado! Ya abre la encuesta en iPhone y Android.' })
+  } catch (e) {
+    setNfc({ kind: 'err', text: e?.name === 'AbortError' ? 'Tiempo agotado. Inténtalo de nuevo.' : e?.name === 'NotAllowedError' ? 'Permite el uso de NFC en el navegador.' : 'No se pudo grabar el TAG: ' + (e?.message || e) })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function QrCard({ worker, generic, onEdit, onDelete, onToggle }) {
   const ref = useRef(null)
   const url = surveyUrlForTag(generic ? '' : worker.tag)
   const [copied, setCopied] = useState(false)
+  const [nfc, setNfc] = useState(null)
   const info = generic ? { name: 'Encuesta San Andrés Vibes', tag: 'QR GENERAL' } : worker
 
   const copy = async () => {
@@ -71,8 +92,10 @@ function QrCard({ worker, generic, onEdit, onDelete, onToggle }) {
       <div className="actions">
         <button className="btn btn-primary btn-sm" onClick={() => downloadCard(ref.current, info)}><Download size={15} /> PNG</button>
         <button className="btn btn-ghost btn-sm" onClick={copy}><Copy size={15} /> {copied ? '¡Copiado!' : 'Link'}</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => writeNfc(url, setNfc)} title="Grabar en TAG NFC"><Nfc size={15} /> NFC</button>
         <a className="btn btn-ghost btn-sm" href={url} target="_blank" rel="noreferrer" title="Abrir"><ExternalLink size={15} /></a>
       </div>
+      {nfc && <div className={'nfc-status ' + nfc.kind} onClick={() => nfc.kind !== 'wait' && setNfc(null)}>{nfc.text}</div>}
       {worker && (
         <div className="actions">
           <button className="btn btn-ghost btn-sm" onClick={onEdit}><Pencil size={14} /> Editar</button>
@@ -163,7 +186,7 @@ export default function Workers({ onChange }) {
       <div className="main-head">
         <div>
           <h1>Equipo y códigos QR</h1>
-          <p>Cada trabajador tiene un TAG único: las encuestas de su QR se le asignan automáticamente.</p>
+          <p>Cada trabajador tiene un TAG único: las encuestas de su QR o de su TAG NFC se le asignan automáticamente.</p>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setEdit({})}><Plus size={18} /> Nuevo trabajador</button>
       </div>

@@ -140,6 +140,9 @@ create table if not exists public.questions (
 );
 create index if not exists questions_position_idx on public.questions (position);
 
+-- Traducciones: { "en": { "title": "...", "subtitle": "...", "options": ["..."] }, "fr": {...}, ... }
+alter table public.questions add column if not exists translations jsonb not null default '{}'::jsonb;
+
 -- ---------------------------------------------------------------------
 -- 4. Respuestas (una fila por encuesta) + detalle por pregunta
 -- ---------------------------------------------------------------------
@@ -328,6 +331,25 @@ select * from (values
   (7, 'text',     'Comentarios adicionales', 'Cuéntanos más sobre tu experiencia (opcional)', '[]'::jsonb, false)
 ) as seed(position, type, title, subtitle, options, required)
 where not exists (select 1 from public.questions);
+
+-- ---------------------------------------------------------------------
+-- 7b. Traducciones de las preguntas iniciales (en, fr, it, de, pt)
+--     Solo se aplican si la pregunta aún no tiene traducciones.
+-- ---------------------------------------------------------------------
+update public.questions set translations = '{"en": {"title": "How would you rate our service overall?", "subtitle": "Select a rating"}, "fr": {"title": "Comment évalueriez-vous notre service en général ?", "subtitle": "Sélectionnez une note"}, "it": {"title": "Come valuteresti il nostro servizio in generale?", "subtitle": "Seleziona un punteggio"}, "de": {"title": "Wie bewerten Sie unseren Service insgesamt?", "subtitle": "Wählen Sie eine Bewertung"}, "pt": {"title": "Como você avaliaria nosso serviço em geral?", "subtitle": "Selecione uma nota"}}'::jsonb
+  where title = '¿Cómo calificarías nuestro servicio en general?' and translations = '{}'::jsonb;
+update public.questions set translations = '{"en": {"title": "Which service did you book with us?", "options": ["Buggy / UTV", "Pontoon boat", "Both"]}, "fr": {"title": "Quel service avez-vous réservé chez nous ?", "options": ["Buggy / UTV", "Bateau ponton", "Les deux"]}, "it": {"title": "Quale servizio hai prenotato con noi?", "options": ["Buggy / UTV", "Barca pontone", "Entrambi"]}, "de": {"title": "Welchen Service haben Sie bei uns gebucht?", "options": ["Buggy / UTV", "Pontonboot", "Beides"]}, "pt": {"title": "Qual serviço você contratou conosco?", "options": ["Buggy / UTV", "Barco pontão", "Ambos"]}}'::jsonb
+  where title = '¿Qué servicio tomaste con nosotros?' and translations = '{}'::jsonb;
+update public.questions set translations = '{"en": {"title": "How satisfied are you with the condition of the vehicle?"}, "fr": {"title": "Êtes-vous satisfait de l''état du véhicule ?"}, "it": {"title": "Quanto sei soddisfatto delle condizioni del veicolo?"}, "de": {"title": "Wie zufrieden sind Sie mit dem Zustand des Fahrzeugs?"}, "pt": {"title": "Quão satisfeito você está com o estado do veículo?"}}'::jsonb
+  where title = '¿Qué tan satisfecho estás con el estado del vehículo?' and translations = '{}'::jsonb;
+update public.questions set translations = '{"en": {"title": "How would you rate our team''s service?"}, "fr": {"title": "Comment évalueriez-vous l''accueil de notre équipe ?"}, "it": {"title": "Come valuteresti l''assistenza del nostro team?"}, "de": {"title": "Wie bewerten Sie die Betreuung durch unser Team?"}, "pt": {"title": "Como você avaliaria o atendimento da nossa equipe?"}}'::jsonb
+  where title = '¿Cómo calificarías la atención de nuestro equipo?' and translations = '{}'::jsonb;
+update public.questions set translations = '{"en": {"title": "What did you like the most?", "subtitle": "You can select several options", "options": ["The driving experience", "The staff''s service", "The condition of the vehicle", "The scenery and routes", "Value for money"]}, "fr": {"title": "Qu''avez-vous le plus apprécié ?", "subtitle": "Vous pouvez choisir plusieurs options", "options": ["L''expérience de conduite", "L''accueil du personnel", "L''état du véhicule", "Les paysages et les itinéraires", "Le rapport qualité-prix"]}, "it": {"title": "Cosa ti è piaciuto di più?", "subtitle": "Puoi selezionare più opzioni", "options": ["L''esperienza di guida", "La cortesia del personale", "Le condizioni del veicolo", "I paesaggi e i percorsi", "Il rapporto qualità-prezzo"]}, "de": {"title": "Was hat Ihnen am besten gefallen?", "subtitle": "Sie können mehrere Optionen wählen", "options": ["Das Fahrerlebnis", "Die Betreuung durch das Personal", "Der Zustand des Fahrzeugs", "Die Landschaft und die Routen", "Das Preis-Leistungs-Verhältnis"]}, "pt": {"title": "Do que você mais gostou?", "subtitle": "Você pode selecionar várias opções", "options": ["A experiência de dirigir", "O atendimento da equipe", "O estado do veículo", "As paisagens e os roteiros", "O custo-benefício"]}}'::jsonb
+  where title = '¿Qué fue lo que más te gustó?' and translations = '{}'::jsonb;
+update public.questions set translations = '{"en": {"title": "Would you recommend San Andrés Vibes?"}, "fr": {"title": "Recommanderiez-vous San Andrés Vibes ?"}, "it": {"title": "Consiglieresti San Andrés Vibes?"}, "de": {"title": "Würden Sie San Andrés Vibes weiterempfehlen?"}, "pt": {"title": "Você recomendaria a San Andrés Vibes?"}}'::jsonb
+  where title = '¿Recomendarías San Andrés Vibes?' and translations = '{}'::jsonb;
+update public.questions set translations = '{"en": {"title": "Additional comments", "subtitle": "Tell us more about your experience (optional)"}, "fr": {"title": "Commentaires supplémentaires", "subtitle": "Parlez-nous de votre expérience (facultatif)"}, "it": {"title": "Commenti aggiuntivi", "subtitle": "Raccontaci di più sulla tua esperienza (facoltativo)"}, "de": {"title": "Weitere Kommentare", "subtitle": "Erzählen Sie uns mehr über Ihr Erlebnis (optional)"}, "pt": {"title": "Comentários adicionais", "subtitle": "Conte-nos mais sobre sua experiência (opcional)"}}'::jsonb
+  where title = 'Comentarios adicionales' and translations = '{}'::jsonb;
 
 -- ---------------------------------------------------------------------
 -- 8. Acceso al panel

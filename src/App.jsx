@@ -12,6 +12,7 @@ export default function App() {
   const isAdmin = pathname.startsWith('/' + ADMIN_PATH)
   useEffect(() => {
     document.body.classList.toggle('public', !isAdmin)
+    if (!isAdmin) document.title = 'San Andrés Vibes · Encuesta'
   }, [isAdmin])
 
   return (

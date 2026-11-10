@@ -15,7 +15,7 @@ function Star({ filled }) {
   )
 }
 
-export default function Stars({ value, onChange }) {
+export default function Stars({ value, onChange, labels = RATING_LABELS, hint = 'Toca una estrella' }) {
   return (
     <div>
       <div className="rating-emoji">{RATING_EMOJI[value] || ''}</div>
@@ -34,7 +34,7 @@ export default function Stars({ value, onChange }) {
           </button>
         ))}
       </div>
-      <div className="rating-label">{RATING_LABELS[value] || 'Toca una estrella'}</div>
+      <div className="rating-label">{labels[value] || hint}</div>
     </div>
   )
 }
