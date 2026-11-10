@@ -58,13 +58,10 @@ export function useAdminData() {
     return () => { alive = false }
   }, [period, tick])
 
-  // Actualización en vivo cuando llega una encuesta nueva
+  // Actualiza solo cada minuto para ver encuestas nuevas
   useEffect(() => {
-    const ch = supabase
-      .channel('responses-live')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'responses' }, () => setTimeout(reload, 1500))
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    const t = setInterval(reload, 60_000)
+    return () => clearInterval(t)
   }, [reload])
 
   const filtered = useMemo(() => {

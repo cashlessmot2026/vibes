@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BarChart3, LogOut, MessageSquareText, ListChecks, QrCode, Trophy, ExternalLink } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { supabase, getAdminSession, setAdminSession } from '../lib/supabase'
 import { asset } from '../config'
 import { Overview, Ranking, Comments } from './Dashboard'
 import Questions from './Questions'
@@ -15,8 +15,8 @@ const TABS = [
   { id: 'qr', label: 'Equipo y QR', icon: QrCode }
 ]
 
-function Login() {
-  const [email, setEmail] = useState('')
+function Login({ onLogin }) {
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -24,9 +24,19 @@ function Login() {
   const submit = async (e) => {
     e.preventDefault()
     setBusy(true); setErr('')
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-    if (error) setErr('Correo o contraseña incorrectos')
+    const { data, error } = await supabase.rpc('admin_login', { p_username: username.trim(), p_password: password })
     setBusy(false)
+    if (error) {
+      const m = error.message || ''
+      setErr(m.includes('locked') ? 'Demasiados intentos. Espera 15 minutos.'
+        : m.includes('invalid_credentials') ? 'Usuario o contraseña incorrectos'
+        : 'No se pudo conectar con el servidor')
+      return
+    }
+    const s = data?.[0]
+    if (!s?.token) return setErr('Usuario o contraseña incorrectos')
+    setAdminSession(s)
+    onLogin(s)
   }
 
   return (
@@ -36,8 +46,8 @@ function Login() {
         <h1>Panel administrativo</h1>
         <p>Encuestas de satisfacción</p>
         <div className="field">
-          <label htmlFor="em">Correo</label>
-          <input id="em" className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label htmlFor="us">Usuario</label>
+          <input id="us" className="input" autoComplete="username" autoCapitalize="none" required value={username} onChange={(e) => setUsername(e.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="pw">Contraseña</label>
@@ -50,7 +60,7 @@ function Login() {
   )
 }
 
-function Panel({ session }) {
+function Panel({ session, onLogout }) {
   const [tab, setTab] = useState(() => {
     try { return localStorage.getItem('sav-admin-tab') || 'resumen' } catch { return 'resumen' }
   })
@@ -80,8 +90,8 @@ function Panel({ session }) {
         ))}
         <div className="grow" />
         <button onClick={() => window.open(asset('#/'), '_blank')}><ExternalLink size={19} /> Ver encuesta</button>
-        <div className="who">{session.user.email}</div>
-        <button onClick={() => supabase.auth.signOut()}><LogOut size={19} /> Cerrar sesión</button>
+        <div className="who">{session.username}</div>
+        <button onClick={onLogout}><LogOut size={19} /> Cerrar sesión</button>
       </aside>
       <main className="main">{view}</main>
       <nav className="mobile-nav">
@@ -96,36 +106,27 @@ function Panel({ session }) {
 }
 
 export default function AdminApp() {
-  const [session, setSession] = useState(undefined)
-  const [isAdmin, setIsAdmin] = useState(null)
+  const [session, setSession] = useState(() => getAdminSession())
+  const [checked, setChecked] = useState(false)
 
-  useEffect(() => {
-    document.title = 'Panel · San Andrés Vibes'
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => sub.subscription.unsubscribe()
-  }, [])
+  useEffect(() => { document.title = 'Panel · San Andrés Vibes' }, [])
 
+  // Verifica que el token siga siendo válido en el servidor
   useEffect(() => {
-    if (!session) { setIsAdmin(null); return }
-    supabase.rpc('is_admin').then(({ data }) => setIsAdmin(!!data))
+    if (!session) { setChecked(true); return }
+    supabase.rpc('is_admin').then(({ data, error }) => {
+      if (!error && !data) { setAdminSession(null); setSession(null) }
+      setChecked(true)
+    })
   }, [session])
 
-  if (session === undefined || (session && isAdmin === null)) {
-    return <div className="center-msg"><div><div className="spinner" />Cargando…</div></div>
+  const logout = async () => {
+    await supabase.rpc('admin_logout')
+    setAdminSession(null)
+    setSession(null)
   }
-  if (!session) return <Login />
-  if (!isAdmin) {
-    return (
-      <div className="login">
-        <div className="login-card">
-          <img src={asset('logo.png')} alt="" />
-          <h1>Sin permisos</h1>
-          <p>La cuenta <b>{session.user.email}</b> no es administradora. Agrégala a la tabla <code>admins</code> en Supabase.</p>
-          <button className="btn btn-ghost btn-block" onClick={() => supabase.auth.signOut()}>Cerrar sesión</button>
-        </div>
-      </div>
-    )
-  }
-  return <Panel session={session} />
+
+  if (!checked) return <div className="center-msg"><div><div className="spinner" />Cargando…</div></div>
+  if (!session) return <Login onLogin={(s) => { setChecked(false); setSession(s) }} />
+  return <Panel session={session} onLogout={logout} />
 }

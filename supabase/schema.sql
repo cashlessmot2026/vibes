@@ -7,19 +7,107 @@
 create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------------
--- 1. Administradores (usuarios de Supabase Auth con acceso al panel)
+-- 1. Administradores: usuario + contraseña propios (no usa Supabase Auth)
+--    El usuario se crea con supabase/admin-user.sql (archivo local, no se sube a GitHub)
 -- ---------------------------------------------------------------------
-create table if not exists public.admins (
-  user_id    uuid primary key references auth.users (id) on delete cascade,
+create table if not exists public.admin_users (
+  id              uuid primary key default gen_random_uuid(),
+  username        text not null unique,
+  password_hash   text not null,
+  failed_attempts int  not null default 0,
+  locked_until    timestamptz,
+  created_at      timestamptz not null default now()
+);
+
+create table if not exists public.admin_sessions (
+  token      text primary key default encode(extensions.gen_random_bytes(32), 'hex'),
+  user_id    uuid not null references public.admin_users (id) on delete cascade,
+  expires_at timestamptz not null default now() + interval '7 days',
   created_at timestamptz not null default now()
 );
+
+drop table if exists public.admins cascade;
+
+-- Token de sesión que envía el panel en el encabezado "x-admin-token"
+create or replace function public.request_admin_token()
+returns text
+language sql stable
+as $$
+  select nullif(current_setting('request.headers', true), '')::json ->> 'x-admin-token';
+$$;
 
 create or replace function public.is_admin()
 returns boolean
 language sql stable security definer
 set search_path = public
 as $$
-  select exists (select 1 from public.admins where user_id = auth.uid());
+  select exists (
+    select 1 from public.admin_sessions s
+    where s.token = public.request_admin_token() and s.expires_at > now()
+  );
+$$;
+
+-- Inicia sesión. Bloquea 15 minutos tras 5 intentos fallidos.
+create or replace function public.admin_login(p_username text, p_password text)
+returns table (token text, expires_at timestamptz, username text)
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+#variable_conflict use_column
+declare
+  v_user public.admin_users%rowtype;
+begin
+  select * into v_user from public.admin_users u where u.username = lower(trim(p_username));
+  if not found then
+    perform pg_sleep(0.5);
+    raise exception 'invalid_credentials';
+  end if;
+  if v_user.locked_until is not null and v_user.locked_until > now() then
+    raise exception 'locked';
+  end if;
+  if v_user.password_hash <> crypt(p_password, v_user.password_hash) then
+    update public.admin_users set
+      failed_attempts = case when failed_attempts + 1 >= 5 then 0 else failed_attempts + 1 end,
+      locked_until    = case when failed_attempts + 1 >= 5 then now() + interval '15 minutes' else null end
+    where id = v_user.id;
+    perform pg_sleep(0.5);
+    raise exception 'invalid_credentials';
+  end if;
+
+  update public.admin_users set failed_attempts = 0, locked_until = null where id = v_user.id;
+  delete from public.admin_sessions s where s.expires_at < now();
+
+  return query
+    insert into public.admin_sessions (user_id) values (v_user.id)
+    returning admin_sessions.token, admin_sessions.expires_at, v_user.username;
+end;
+$$;
+
+create or replace function public.admin_logout()
+returns void
+language sql security definer
+set search_path = public
+as $$
+  delete from public.admin_sessions where token = public.request_admin_token();
+$$;
+
+-- Cambia la contraseña del admin que tiene la sesión abierta
+create or replace function public.admin_change_password(p_old text, p_new text)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_user public.admin_users%rowtype;
+begin
+  select u.* into v_user from public.admin_users u
+  join public.admin_sessions s on s.user_id = u.id
+  where s.token = public.request_admin_token() and s.expires_at > now();
+  if not found then raise exception 'not_authenticated'; end if;
+  if v_user.password_hash <> crypt(p_old, v_user.password_hash) then raise exception 'invalid_credentials'; end if;
+  if char_length(coalesce(p_new, '')) < 4 then raise exception 'password_too_short'; end if;
+  update public.admin_users set password_hash = crypt(p_new, gen_salt('bf')) where id = v_user.id;
+end;
 $$;
 
 -- ---------------------------------------------------------------------
@@ -81,15 +169,12 @@ create index if not exists answers_question_idx on public.answers (question_id);
 -- ---------------------------------------------------------------------
 -- 5. Row Level Security
 -- ---------------------------------------------------------------------
-alter table public.admins    enable row level security;
+alter table public.admin_users    enable row level security;  -- sin políticas: solo vía funciones
+alter table public.admin_sessions enable row level security;  -- sin políticas: solo vía funciones
 alter table public.workers   enable row level security;
 alter table public.questions enable row level security;
 alter table public.responses enable row level security;
 alter table public.answers   enable row level security;
-
-drop policy if exists "admins read self"    on public.admins;
-create policy "admins read self" on public.admins
-  for select to authenticated using (user_id = auth.uid());
 
 drop policy if exists "questions public read" on public.questions;
 create policy "questions public read" on public.questions
@@ -97,19 +182,19 @@ create policy "questions public read" on public.questions
 
 drop policy if exists "questions admin write" on public.questions;
 create policy "questions admin write" on public.questions
-  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+  for all to anon, authenticated using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "workers admin all" on public.workers;
 create policy "workers admin all" on public.workers
-  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+  for all to anon, authenticated using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "responses admin all" on public.responses;
 create policy "responses admin all" on public.responses
-  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+  for all to anon, authenticated using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "answers admin all" on public.answers;
 create policy "answers admin all" on public.answers
-  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+  for all to anon, authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- Los clientes (anon) NO leen ni escriben tablas directamente:
 -- usan las dos funciones de abajo.
@@ -209,9 +294,13 @@ grant execute on function public.submit_response(text, jsonb) to anon, authentic
 grant execute on function public.get_worker_public(text)      to anon, authenticated;
 grant execute on function public.is_admin()                   to anon, authenticated;
 
-grant select on public.questions to anon;
-grant select, insert, update, delete on public.questions, public.workers, public.responses, public.answers to authenticated;
-grant select on public.admins to authenticated;
+grant execute on function public.admin_login(text, text)           to anon, authenticated;
+grant execute on function public.admin_logout()                     to anon, authenticated;
+grant execute on function public.admin_change_password(text, text) to anon, authenticated;
+revoke all on public.admin_users, public.admin_sessions from anon, authenticated;
+
+-- El panel usa la llave pública + token de sesión: RLS decide qué puede hacer.
+grant select, insert, update, delete on public.questions, public.workers, public.responses, public.answers to anon, authenticated;
 
 -- Tiempo real: el panel se actualiza solo cuando llega una encuesta
 do $$
@@ -241,12 +330,7 @@ select * from (values
 where not exists (select 1 from public.questions);
 
 -- ---------------------------------------------------------------------
--- 8. Crear tu usuario administrador
---    a) Supabase → Authentication → Users → "Add user" (email + contraseña,
---       marca "Auto Confirm User").
---    b) Ejecuta (cambiando el correo):
---
---    insert into public.admins (user_id)
---    select id from auth.users where email = 'tu-correo@ejemplo.com'
---    on conflict do nothing;
+-- 8. Acceso al panel
+--    Crea el usuario administrador ejecutando el archivo local
+--    supabase/admin-user.sql (no está en GitHub para no publicar la contraseña).
 -- ---------------------------------------------------------------------

@@ -15,28 +15,28 @@ App web instalable (PWA) en React + Vite + Supabase para medir la satisfacción 
 - Al terminar ve los botones para dejar reseña en **Google** (Place ID `ChIJSTFP4YUpRAkRQNgr1cRHY7Y`) y en **Tripadvisor**.
 - Se puede instalar en iOS y Android. Funciona sin internet: las encuestas quedan en cola y se envían al volver la conexión.
 
-**Admin** (correo y contraseña de Supabase Auth)
+**Admin** (usuario y contraseña propios, guardados cifrados con bcrypt)
 - Resumen: total de encuestas, calificación promedio, % de satisfacción, % de recomendación, evolución en el tiempo,
   niveles de satisfacción, calificación por aspecto y resultados de las preguntas de opción.
 - **Ranking de QR**: los trabajadores ordenados por calificación.
 - Comentarios con filtros y exportación a CSV (Excel).
 - Editor de preguntas: crear, editar, ordenar, ocultar y eliminar.
 - Equipo y QR: alta de trabajadores con un **TAG único**, más el **QR genérico**. Descarga de cada QR como tarjeta PNG con el logo.
-- Se actualiza en tiempo real cuando llega una encuesta nueva.
+- Se actualiza solo cada minuto.
 
 ## Configurar Supabase (una sola vez)
 
 1. Supabase → **SQL Editor** → pega todo [`supabase/schema.sql`](supabase/schema.sql) → **Run**.
    El script crea las tablas, la seguridad (RLS), las funciones y 7 preguntas iniciales.
-2. **Authentication → Users → Add user**: tu correo y contraseña, con *Auto Confirm User* marcado.
-3. En el SQL Editor, vuelve tu usuario administrador:
+2. Ejecuta también el archivo local `supabase/admin-user.sql`, que crea el usuario del panel.
+   Ese archivo no se sube a GitHub para no publicar la contraseña.
+   Después de 5 intentos fallidos el acceso se bloquea 15 minutos.
+3. Para cambiar la contraseña, ejecuta en el SQL Editor:
    ```sql
-   insert into public.admins (user_id)
-   select id from auth.users where email = 'tu-correo@ejemplo.com'
-   on conflict do nothing;
+   update public.admin_users
+   set password_hash = extensions.crypt('NUEVA-CLAVE', extensions.gen_salt('bf'))
+   where username = 'admin';
    ```
-4. Recomendado: **Authentication → Sign In / Providers → desactiva "Allow new users to sign up"**.
-5. Recomendado: **Authentication → URL Configuration → Site URL** = `https://cashlessmot2026.github.io/vibes/`.
 
 ## Cómo funcionan los QR
 
